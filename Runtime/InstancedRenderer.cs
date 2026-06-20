@@ -547,6 +547,7 @@ namespace Marinade.InstancedRendering
     #if UNITY_EDITOR
         public void Serialize_Editor()
         {
+            if (Application.isPlaying) return;
             var group = Undo.GetCurrentGroup();
             // if instances null or empty
             Undo.RegisterCompleteObjectUndo(this, "Modified Instances");
