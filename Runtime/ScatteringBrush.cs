@@ -3,6 +3,7 @@
 namespace Marinade.InstancedRendering
 {
     [CreateAssetMenu(menuName = "Marinade/Instanced Rendering/Scattering Brush")]
+    [Icon("Packages/com.marinade.instancedrendering/Editor/icon_ScatteringBrush.png")]
     public class ScatteringBrush : ScriptableObject
     {
         // Brush

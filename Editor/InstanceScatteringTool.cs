@@ -5,6 +5,7 @@ using UnityEngine;
 namespace Marinade.InstancedRendering.Editor
 {
     [EditorTool("Instance Scattering", typeof(InstancedRenderer))]
+    [Icon("Packages/com.marinade.instancedrendering/Editor/icon_ScatteringBrush.png")]
     public class InstanceScatteringTool : EditorTool
     {
         
