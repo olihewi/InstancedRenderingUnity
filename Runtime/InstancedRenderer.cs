@@ -533,8 +533,6 @@ namespace Marinade.InstancedRendering
             File.WriteAllBytes(path, m_SerializedData.bytes);
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
             m_SerializedData = AssetDatabase.LoadAssetAtPath<TextAsset>(path);
-            Debug.Log(m_SerializedData);
-            Debug.Log(path);
             EditorUtility.SetDirty(this);
         }
 

@@ -32,7 +32,7 @@ namespace Marinade.InstancedRendering.Editor
             var e = Event.current;
             var posSS = e.mousePosition;
             var ray = HandleUtility.GUIPointToWorldRay(posSS);
-            if (!Physics.Raycast(ray, out var hitInfo, overlay.brush.layerMask)) return;
+            if (!Physics.Raycast(ray, out var hitInfo, Mathf.Infinity, overlay.brush.layerMask)) return;
             Handles.color = e.shift ? Color.red : Color.white;
             var outerRadius = overlay.radiusSlider.value;
             var innerRadius = outerRadius * overlay.falloffSlider.value;
@@ -55,8 +55,9 @@ namespace Marinade.InstancedRendering.Editor
                     }
                     else if (e.type == EventType.MouseDown)
                     {
-                        instancedRenderer.AddInstance(Matrix4x4.TRS(hitInfo.point, 
-                            overlay.brush.GetInstanceRotation(ray, hitInfo), 
+                        var rot = overlay.brush.GetInstanceRotation(ray, hitInfo);
+                        instancedRenderer.AddInstance(Matrix4x4.TRS(hitInfo.point + rot * overlay.brush.pivot,
+                            rot,
                             overlay.brush.GetInstanceScale(hitInfo.point)));
                     }
                 }

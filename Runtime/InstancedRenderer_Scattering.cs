@@ -46,8 +46,9 @@ namespace Marinade.InstancedRendering
                         continue;
                     }
 
-                    var instance = Matrix4x4.TRS(scatterHit.point,
-                        brush.GetInstanceRotation(ray, scatterHit),
+                    var rot = brush.GetInstanceRotation(ray, scatterHit);
+                    var instance = Matrix4x4.TRS(scatterHit.point + rot * brush.pivot,
+                        rot,
                         brush.GetInstanceScale(scatterHit.point, noise, falloffFactor));
                     AddInstance(instance);
                     perInstanceAddedOrModified?.Invoke(instance);
