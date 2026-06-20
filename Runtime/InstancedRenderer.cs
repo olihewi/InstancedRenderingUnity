@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.IO;
+using UnityEngine.Serialization;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine.SceneManagement;
@@ -22,7 +23,9 @@ namespace Marinade.InstancedRendering
         public ReflectionProbeUsage reflectionProbeUsage;
         public RenderingLayerMask renderingLayerMask;
         
-        public ScatteringBrush defaultBrush;
+        [FormerlySerializedAs("defaultBrush")] 
+        public ScatteringBrush brush;
+        
         [Range(0.01F, 10F)] public float minScatterDistance;
     }
 
@@ -63,7 +66,7 @@ namespace Marinade.InstancedRendering
         private static readonly int _ObjectMatrix = Shader.PropertyToID("_ObjectMatrix");
 
         public InstancedRendererSettings Settings => m_Settings;
-        public ScatteringBrush DefaultBrush => m_Settings.defaultBrush;
+        public ScatteringBrush Brush => m_Settings.brush;
         
     #region Unity Events
         
@@ -123,7 +126,7 @@ namespace Marinade.InstancedRendering
             var config = InstancedRenderingConfiguration.GetOrCreateSettings_Editor();
             if (config != null)
             {
-                m_Settings.defaultBrush = config.DefaultScatteringBrush;
+                m_Settings.brush = config.DefaultScatteringBrush;
                 m_Settings.mesh = config.DefaultInstanceMesh;
                 m_Settings.material = config.DefaultInstanceMaterial;
             }

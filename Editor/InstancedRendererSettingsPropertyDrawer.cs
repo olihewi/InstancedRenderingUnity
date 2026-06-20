@@ -29,7 +29,7 @@ namespace Marinade.InstancedRendering.Editor
             var placementBox = new Box();
             placementBox.Add(new Label("Placement"){style = { unityFontStyleAndWeight = FontStyle.Bold }});
             visualElement.Add(placementBox);
-            placementBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.defaultBrush))));
+            placementBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.brush))));
             placementBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.minScatterDistance))));
 
             return visualElement;

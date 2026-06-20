@@ -28,7 +28,7 @@ namespace Marinade.InstancedRendering.Editor
         public override void OnToolGUI(EditorWindow window)
         {
             if (target is not InstancedRenderer instancedRenderer || overlay == null) return;
-            overlay.SetBrush(instancedRenderer.DefaultBrush);
+            overlay.SetBrush(instancedRenderer.Brush);
             int control = GUIUtility.GetControlID(64325437, FocusType.Passive);
             var e = Event.current;
             var posSS = e.mousePosition;
