@@ -44,7 +44,6 @@ namespace Marinade.InstancedRendering.Editor
                 it.NextVisible(true);
                 while (it.NextVisible(false))
                 {
-                    Debug.Log(it.name);
                     var field = new PropertyField(it);
                     field.Bind(so);
                     brushBox.Add(field);
