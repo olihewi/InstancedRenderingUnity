@@ -41,7 +41,7 @@ namespace Marinade.InstancedRendering
             public int Count;
         }
 
-        public const int SPATIAL_HASH_TABLE_SIZE = 512;
+        public const int SPATIAL_HASH_TABLE_SIZE = 1024;
         public const int INSTANCE_CELL_RATIO = 8;
 
         [SerializeField] private InstancedRendererSettings m_Settings;
