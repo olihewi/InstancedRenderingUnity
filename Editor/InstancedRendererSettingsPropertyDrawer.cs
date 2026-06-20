@@ -16,7 +16,6 @@ namespace Marinade.InstancedRendering.Editor
 
             var renderingBox = new Box();
             renderingBox.Add(new Label("Rendering"){style = { unityFontStyleAndWeight = FontStyle.Bold }});
-            visualElement.Add(renderingBox);
             var meshMaterialBox = new Box();
             renderingBox.Add(meshMaterialBox);
             meshMaterialBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.mesh))));
@@ -25,12 +24,36 @@ namespace Marinade.InstancedRendering.Editor
             renderingBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.shadowCastingMode))));
             renderingBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.reflectionProbeUsage))));
             renderingBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.renderingLayerMask))));
+            visualElement.Add(renderingBox);
 
             var placementBox = new Box();
             placementBox.Add(new Label("Placement"){style = { unityFontStyleAndWeight = FontStyle.Bold }});
-            visualElement.Add(placementBox);
-            placementBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.brush))));
             placementBox.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.minScatterDistance))));
+            var brushProperty = new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.brush)));
+            placementBox.Add(brushProperty);
+            var brushFoldout = new Foldout(){text = "Edit Brush"};
+            brushProperty.RegisterValueChangeCallback(e =>
+            {
+                brushFoldout.Clear();
+                brushFoldout.visible = false;
+                var brushBox = new Box();
+                if (e.changedProperty.hasMultipleDifferentValues ||
+                    e.changedProperty.objectReferenceValue == null) return;
+                var so = new SerializedObject(e.changedProperty.objectReferenceValue);
+                var it = so.GetIterator();
+                it.NextVisible(true);
+                while (it.NextVisible(false))
+                {
+                    Debug.Log(it.name);
+                    var field = new PropertyField(it);
+                    field.Bind(so);
+                    brushBox.Add(field);
+                }
+                brushFoldout.Add(brushBox);
+                brushFoldout.visible = true;
+            });
+            placementBox.Add(brushFoldout);
+            visualElement.Add(placementBox);
 
             return visualElement;
         }
