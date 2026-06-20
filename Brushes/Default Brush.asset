@@ -15,7 +15,7 @@ MonoBehaviour:
   noiseFrequency: 0
   outerRadius: 1
   innerRadius: 0.8
-  scatterDistance: 0.5
+  scatterDistance: 1
   falloffScatteringMultiplier: 4
   noiseScatteringVariation: 0
   layerMask:

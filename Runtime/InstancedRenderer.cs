@@ -329,6 +329,9 @@ namespace Marinade.InstancedRendering
             {
                 AddInstance(instances[i].matrix, _currentTransformSpace);
             }
+        #if UNITY_EDITOR
+            Serialize_Editor();
+        #endif
         }
 
     #endregion
