@@ -31,7 +31,7 @@ namespace Marinade.InstancedRendering
 
     [ExecuteAlways]
     [AddComponentMenu("Rendering/Instanced Renderer")]
-    [Icon("Packages/com.marinade.instancedrendering/Editor/icon_InstancedRenderer.png")]
+    [Icon("Packages/com.marinade.instancedrendering/Editor/Icons/icon_InstancedRenderer.png")]
     public partial class InstancedRenderer : MonoBehaviour
     {
         [Serializable]
