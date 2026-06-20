@@ -37,8 +37,8 @@ namespace Marinade.InstancedRendering
         [Serializable]
         public struct SpatialCell
         {
-            public ushort Pointer;
-            public ushort Count;
+            public int Pointer;
+            public int Count;
         }
 
         public const int SPATIAL_HASH_TABLE_SIZE = 512;
@@ -319,6 +319,7 @@ namespace Marinade.InstancedRendering
             _dirtyThisFrame = true;
         }
         
+        [ContextMenu("Fix Broken Data")]
         public void RebuildInstanceData()
         {
             if (_instances == null) return;
