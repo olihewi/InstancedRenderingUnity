@@ -15,8 +15,8 @@ namespace Marinade.InstancedRendering.Editor
         public Toggle requireSameCollider;
         public LayerMaskField layerMask;
 
-        public ScatteringBrush sourceBrush;
-        public ScatteringBrush brush;
+        public InstanceScatteringBrush sourceBrush;
+        public InstanceScatteringBrush brush;
         
         public override VisualElement CreatePanelContent()
         {
@@ -65,7 +65,7 @@ namespace Marinade.InstancedRendering.Editor
             return rootElement;
         }
 
-        public void SetBrush(ScatteringBrush source)
+        public void SetBrush(InstanceScatteringBrush source)
         {
             if (tabView == null || (sourceBrush == source && brush != null)) return;
             if (brush != null) Object.DestroyImmediate(brush);
@@ -73,7 +73,7 @@ namespace Marinade.InstancedRendering.Editor
             if (source != null)
                 brush = Object.Instantiate(source);
             else
-                brush = ScriptableObject.CreateInstance<ScatteringBrush>();
+                brush = ScriptableObject.CreateInstance<InstanceScatteringBrush>();
             
             falloffSlider.value = brush.innerRadius / brush.outerRadius;
             radiusSlider.value = brush.outerRadius;

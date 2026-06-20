@@ -11,12 +11,12 @@ namespace Marinade.InstancedRendering
     {
         [SerializeField] private bool m_SaveInstanceAssetsToScenePath = true;
         [SerializeField] private string m_InstanceAssetsFilePath = "Assets/InstanceAssets";
-        [SerializeField] private ScatteringBrush m_DefaultScatteringBrush;
+        [SerializeField] private InstanceScatteringBrush m_DefaultScatteringBrush;
         [SerializeField] private Mesh m_DefaultInstanceMesh;
         [SerializeField] private Material m_DefaultInstanceMaterial;
         public bool SaveInstanceAssetsToScenePath => m_SaveInstanceAssetsToScenePath;
         public string InstanceAssetsFilePath => m_InstanceAssetsFilePath;
-        public ScatteringBrush DefaultScatteringBrush => m_DefaultScatteringBrush;
+        public InstanceScatteringBrush DefaultScatteringBrush => m_DefaultScatteringBrush;
         public Mesh DefaultInstanceMesh => m_DefaultInstanceMesh;
         public Material DefaultInstanceMaterial => m_DefaultInstanceMaterial;
 
@@ -30,7 +30,7 @@ namespace Marinade.InstancedRendering
                 settings = CreateInstance<InstancedRenderingConfiguration>();
                 // ReSharper disable once PossibleNullReferenceException
                 var packagePath = Path.GetDirectoryName(Path.GetDirectoryName(AssetDatabase.GetAssetPath(MonoScript.FromScriptableObject(settings)).TrimEnd('/')));
-                settings.m_DefaultScatteringBrush = AssetDatabase.LoadAssetAtPath<ScatteringBrush>(Path.Combine(packagePath, "Brushes/Default Brush.asset"));
+                settings.m_DefaultScatteringBrush = AssetDatabase.LoadAssetAtPath<InstanceScatteringBrush>(Path.Combine(packagePath, "Brushes/Default Brush.asset"));
                 settings.m_DefaultInstanceMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
                 settings.m_DefaultInstanceMaterial = AssetDatabase.LoadAssetAtPath<Material>(Path.Combine(packagePath, "Samples/InstancedRenderingSample.shadergraph"));
                 AssetDatabase.CreateAsset(settings, k_Path);

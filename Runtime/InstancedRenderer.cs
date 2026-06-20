@@ -24,7 +24,7 @@ namespace Marinade.InstancedRendering
         public RenderingLayerMask renderingLayerMask;
         
         [FormerlySerializedAs("defaultBrush")] 
-        public ScatteringBrush brush;
+        public InstanceScatteringBrush brush;
         
         [Range(0.01F, 10F)] public float minScatterDistance;
     }
@@ -66,7 +66,7 @@ namespace Marinade.InstancedRendering
         private static readonly int _ObjectMatrix = Shader.PropertyToID("_ObjectMatrix");
 
         public InstancedRendererSettings Settings => m_Settings;
-        public ScatteringBrush Brush => m_Settings.brush;
+        public InstanceScatteringBrush Brush => m_Settings.brush;
         
     #region Unity Events
         

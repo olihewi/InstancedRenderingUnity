@@ -5,7 +5,7 @@ namespace Marinade.InstancedRendering
 {
     public partial class InstancedRenderer
     {
-        public int Scatter(Ray ray, RaycastHit hit, ScatteringBrush brush, Action<Matrix4x4> perInstanceAddedOrModified = null)
+        public int Scatter(Ray ray, RaycastHit hit, InstanceScatteringBrush brush, Action<Matrix4x4> perInstanceAddedOrModified = null)
         {
             int prevInstanceCount = _instances?.Count ?? 0;
             var scatterDistance = Mathf.Max(m_Settings.minScatterDistance, brush.scatterDistance);

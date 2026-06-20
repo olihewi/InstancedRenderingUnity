@@ -2,9 +2,9 @@
 
 namespace Marinade.InstancedRendering
 {
-    [CreateAssetMenu(menuName = "Marinade/Instanced Rendering/Scattering Brush")]
+    [CreateAssetMenu(menuName = "Rendering/Instance Scattering Brush", order = 90000)]
     [Icon("Packages/com.marinade.instancedrendering/Editor/Icons/icon_ScatteringBrush.png")]
-    public class ScatteringBrush : ScriptableObject
+    public class InstanceScatteringBrush : ScriptableObject
     {
         // Brush
         public float noiseFrequency;
