@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2de3c8ef4ba41899f2f9ff30f263447, type: 3}
+  m_Name: Default Brush
+  m_EditorClassIdentifier: Marinade.InstancedRendering::Marinade.InstancedRendering.ScatteringBrush
+  noiseFrequency: 0
+  outerRadius: 1
+  innerRadius: 0.8
+  scatterDistance: 0.05
+  falloffScatteringMultiplier: 8
+  noiseScatteringVariation: 0
+  layerMask:
+    serializedVersion: 2
+    m_Bits: 51
+  requireSameCollider: 0
+  normalLimit: -1
+  baseScale: {x: 1, y: 1, z: 1}
+  falloffScaleMultiplier: {x: 1, y: 1, z: 1}
+  scaleRandomization: {x: 0, y: 0, z: 0}
+  noiseScaleVariance: {x: 0, y: 0, z: 0}
+  baseRotation: {x: 0, y: 0, z: 0}
+  normalAlignment: 1
+  rotationRandomization: {x: 0, y: 360, z: 0}
