@@ -321,6 +321,7 @@ namespace Marinade.InstancedRendering
         
         public void RebuildInstanceData()
         {
+            if (_instances == null) return;
             var instances = _instances;
             var instanceCount = instances.Count;
             Clear();
