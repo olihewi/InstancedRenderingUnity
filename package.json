@@ -2,11 +2,11 @@
   "name": "com.marinade.instancedrendering",
   "displayName": "Marinade Instanced Rendering",
   "version": "0.1.0",
-  "unity": "6000.3",
-  "unityRelease": "11f1",
+  "unity": "6000.0",
+  "unityRelease": "0b11",
   "description": "Simple Instanced Renderer system to render massive amounts of a single object very efficiently with PolyBrush-like controls.\n\nInstanced Renderer materials must use the Instanced Rendering subgraph block or use InstancedRendering.hlsl.",
   "author": {
-    "name": "Oliver Hewison",
+    "name": "Marinade",
     "url": "http://www.olihewi.com",
     "email": "hewisonoliver@gmail.com"
   },
