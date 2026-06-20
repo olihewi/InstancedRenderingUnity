@@ -119,8 +119,14 @@ namespace Marinade.InstancedRendering
                 reflectionProbeUsage = ReflectionProbeUsage.BlendProbesAndSkybox,
                 renderingLayerMask = RenderingLayerMask.defaultRenderingLayerMask,
                 minScatterDistance = 0.05F,
-                defaultBrush = InstancedRenderingConfiguration.GetOrCreateSettings_Editor().DefaultScatteringBrush,
             };
+            var config = InstancedRenderingConfiguration.GetOrCreateSettings_Editor();
+            if (config != null)
+            {
+                m_Settings.defaultBrush = config.DefaultScatteringBrush;
+                m_Settings.mesh = config.DefaultInstanceMesh;
+                m_Settings.material = config.DefaultInstanceMaterial;
+            }
             Clear();
         }
     #endif
@@ -130,7 +136,7 @@ namespace Marinade.InstancedRendering
             if (m_Settings.transformSpace != _currentTransformSpace)
             {
                 _currentTransformSpace = m_Settings.transformSpace;
-                ConvertTransformSpace(m_Settings.transformSpace);
+                ConvertTransformSpace();
             }
             if (m_Settings.lightProbeUsage != _currentLightProbeUsage)
             {
@@ -322,8 +328,9 @@ namespace Marinade.InstancedRendering
             }
         }
         
-        public void ConvertTransformSpace(Space to)
+        private void ConvertTransformSpace()
         {
+            var space = _currentTransformSpace == Space.Self ? Space.World : Space.Self;
             if (_instances == null) return;
             var instances = _instances;
             var instanceCount = instances.Count;
@@ -331,7 +338,7 @@ namespace Marinade.InstancedRendering
             _instances = new List<Instance>(instanceCount);
             for (int i = 0; i < instanceCount; ++i)
             {
-                AddInstance(instances[i].matrix, _currentTransformSpace);
+                AddInstance(instances[i].matrix, space);
             }
         }
 

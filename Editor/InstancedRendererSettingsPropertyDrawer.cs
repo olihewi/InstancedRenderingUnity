@@ -12,7 +12,7 @@ namespace Marinade.InstancedRendering.Editor
         {
             var visualElement = new VisualElement();
 
-            //visualElement.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.transformSpace))));
+            visualElement.Add(new PropertyField(property.FindPropertyRelative(nameof(InstancedRendererSettings.transformSpace))));
 
             var renderingBox = new Box();
             renderingBox.Add(new Label("Rendering"){style = { unityFontStyleAndWeight = FontStyle.Bold }});

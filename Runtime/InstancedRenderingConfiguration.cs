@@ -12,9 +12,13 @@ namespace Marinade.InstancedRendering
         [SerializeField] private bool m_SaveInstanceAssetsToScenePath = true;
         [SerializeField] private string m_InstanceAssetsFilePath = "Assets/InstanceAssets";
         [SerializeField] private ScatteringBrush m_DefaultScatteringBrush;
+        [SerializeField] private Mesh m_DefaultInstanceMesh;
+        [SerializeField] private Material m_DefaultInstanceMaterial;
         public bool SaveInstanceAssetsToScenePath => m_SaveInstanceAssetsToScenePath;
         public string InstanceAssetsFilePath => m_InstanceAssetsFilePath;
         public ScatteringBrush DefaultScatteringBrush => m_DefaultScatteringBrush;
+        public Mesh DefaultInstanceMesh => m_DefaultInstanceMesh;
+        public Material DefaultInstanceMaterial => m_DefaultInstanceMaterial;
 
     #if UNITY_EDITOR
         public const string k_Path = "Assets/Settings/InstancedRendering.asset";
@@ -25,10 +29,10 @@ namespace Marinade.InstancedRendering
             {
                 settings = CreateInstance<InstancedRenderingConfiguration>();
                 // ReSharper disable once PossibleNullReferenceException
-                var path = Path.GetDirectoryName(Path.GetDirectoryName(AssetDatabase.GetAssetPath(MonoScript.FromScriptableObject(settings)).TrimEnd('/')));
-                path = Path.Combine(path, "Brushes/Default Brush.asset");
-                Debug.Log(path);
-                settings.m_DefaultScatteringBrush = AssetDatabase.LoadAssetAtPath<ScatteringBrush>(path);
+                var packagePath = Path.GetDirectoryName(Path.GetDirectoryName(AssetDatabase.GetAssetPath(MonoScript.FromScriptableObject(settings)).TrimEnd('/')));
+                settings.m_DefaultScatteringBrush = AssetDatabase.LoadAssetAtPath<ScatteringBrush>(Path.Combine(packagePath, "Brushes/Default Brush.asset"));
+                settings.m_DefaultInstanceMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+                settings.m_DefaultInstanceMaterial = AssetDatabase.LoadAssetAtPath<Material>(Path.Combine(packagePath, "Samples/InstancedRenderingSample.shadergraph"));
                 AssetDatabase.CreateAsset(settings, k_Path);
                 AssetDatabase.SaveAssets();
             }
@@ -48,10 +52,12 @@ namespace Marinade.InstancedRendering
                 guiHandler = (searchContext) =>
                 {
                     var settings = InstancedRenderingConfiguration.GetSerializedSettings_Editor();
-                    var saveInstanceAssetsToScenePath = settings.FindProperty("m_SaveInstanceAssetsToScenePath");
+                    var saveInstanceAssetsToScenePath = settings.FindProperty(nameof(m_SaveInstanceAssetsToScenePath));
                     EditorGUILayout.PropertyField(saveInstanceAssetsToScenePath, new GUIContent("Save Instance Assets to Scene Pathr"));
-                    if (!saveInstanceAssetsToScenePath.boolValue) EditorGUILayout.PropertyField(settings.FindProperty("m_InstanceAssetsFilePath"), new GUIContent("Instance Assets Scene Path"));
-                    EditorGUILayout.PropertyField(settings.FindProperty("m_DefaultScatteringBrush"));
+                    if (!saveInstanceAssetsToScenePath.boolValue) EditorGUILayout.PropertyField(settings.FindProperty(nameof(m_InstanceAssetsFilePath)), new GUIContent("Instance Assets Scene Path"));
+                    EditorGUILayout.PropertyField(settings.FindProperty(nameof(m_DefaultScatteringBrush)));
+                    EditorGUILayout.PropertyField(settings.FindProperty(nameof(m_DefaultInstanceMesh)));
+                    EditorGUILayout.PropertyField(settings.FindProperty(nameof(m_DefaultInstanceMaterial)));
                     settings.ApplyModifiedPropertiesWithoutUndo();
                 },
                 keywords = new HashSet<string>(new[] { "Instance Assets", "Rendering", "Renderer", "Instanced", "File Path" })
