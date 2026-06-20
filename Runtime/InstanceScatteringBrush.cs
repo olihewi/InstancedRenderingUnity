@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace Marinade.InstancedRendering
 {
@@ -13,7 +15,7 @@ namespace Marinade.InstancedRendering
         
         // Scattering
         public float scatterDistance = 0.1F;
-        [Range(1F, 8F)] public float falloffScatteringMultiplier = 1F;
+        public float falloffScatteringMultiplier = 1F;
         public float noiseScatteringVariation;
         
         // Placement Limits
@@ -34,6 +36,14 @@ namespace Marinade.InstancedRendering
         public Vector3 baseRotation = Vector3.zero;
         [Range(0F, 1F)] public float normalAlignment = 1F;
         public Vector3 rotationRandomization = new(0F, 360F, 0F);
+
+    #if UNITY_EDITOR
+        [NonSerialized] public bool isDirty_Editor;
+        private void OnValidate()
+        {
+            isDirty_Editor = true;
+        }
+    #endif
         
         public Vector3 GetInstanceScale(Vector3 position, float noise = 0F, float falloff = 1F)
         {

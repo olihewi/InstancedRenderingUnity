@@ -11,7 +11,8 @@ namespace Marinade.InstancedRendering.Editor
         public TabView tabView;
         public Tab scatteringTab, singleTab;
         // Scattering
-        public Slider radiusSlider, falloffSlider, scatterMultiplier;
+        public Slider radiusSlider, falloffSlider;
+        public FloatField scatterMultiplier;
         public Toggle requireSameCollider;
         public LayerMaskField layerMask;
 
@@ -42,7 +43,7 @@ namespace Marinade.InstancedRendering.Editor
                 if (brush == null) return;
                 brush.innerRadius = radiusSlider.value * (f.newValue);
             });
-            scatteringTab.Add(scatterMultiplier = new Slider("Scatter Multiplier", 1F, 10F){value = 1F});
+            scatteringTab.Add(scatterMultiplier = new FloatField("Scatter Multiplier"){value = 1F});
             scatterMultiplier.RegisterCallback<ChangeEvent<float>>(f =>
             {
                 if (brush == null || sourceBrush == null) return;
@@ -67,13 +68,18 @@ namespace Marinade.InstancedRendering.Editor
 
         public void SetBrush(InstanceScatteringBrush source)
         {
-            if (tabView == null || (sourceBrush == source && brush != null)) return;
+            if (tabView == null || (sourceBrush == source && brush != null && (source == null || !source.isDirty_Editor))) return;
             if (brush != null) Object.DestroyImmediate(brush);
             sourceBrush = source;
             if (source != null)
+            {
                 brush = Object.Instantiate(source);
+                source.isDirty_Editor = false;
+            }
             else
+            {
                 brush = ScriptableObject.CreateInstance<InstanceScatteringBrush>();
+            }
             
             falloffSlider.value = brush.innerRadius / brush.outerRadius;
             radiusSlider.value = brush.outerRadius;

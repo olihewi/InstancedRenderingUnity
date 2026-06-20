@@ -121,7 +121,7 @@ namespace Marinade.InstancedRendering
                 shadowCastingMode = ShadowCastingMode.Off,
                 reflectionProbeUsage = ReflectionProbeUsage.BlendProbesAndSkybox,
                 renderingLayerMask = RenderingLayerMask.defaultRenderingLayerMask,
-                minScatterDistance = 0.05F,
+                minScatterDistance = 0.25F,
             };
             var config = InstancedRenderingConfiguration.GetOrCreateSettings_Editor();
             if (config != null)
@@ -138,8 +138,8 @@ namespace Marinade.InstancedRendering
         {
             if (m_Settings.transformSpace != _currentTransformSpace)
             {
+                RebuildInstanceData();
                 _currentTransformSpace = m_Settings.transformSpace;
-                ConvertTransformSpace();
             }
             if (m_Settings.lightProbeUsage != _currentLightProbeUsage)
             {
@@ -327,21 +327,7 @@ namespace Marinade.InstancedRendering
             _instances = new List<Instance>(instanceCount);
             for (int i = 0; i < instanceCount; ++i)
             {
-                AddInstance(instances[i].matrix, m_Settings.transformSpace);
-            }
-        }
-        
-        private void ConvertTransformSpace()
-        {
-            var space = _currentTransformSpace == Space.Self ? Space.World : Space.Self;
-            if (_instances == null) return;
-            var instances = _instances;
-            var instanceCount = instances.Count;
-            Clear();
-            _instances = new List<Instance>(instanceCount);
-            for (int i = 0; i < instanceCount; ++i)
-            {
-                AddInstance(instances[i].matrix, space);
+                AddInstance(instances[i].matrix, _currentTransformSpace);
             }
         }
 
@@ -384,25 +370,8 @@ namespace Marinade.InstancedRendering
 
     #endregion
 
-    #region Lookup
-        
-        private static Vector3Int[] CELL_OFFSETS =
-        {
-            new(0,0,0),
-            
-            new(-1, 0,-1), new( 0, 0,-1), new( 1, 0,-1),
-            new(-1, 0, 0),                      new( 1, 0, 0),
-            new(-1, 0, 1), new( 0, 0, 1), new( 1, 0, 1),
-            
-            new(-1,-1,-1), new( 0,-1,-1), new( 1,-1,-1),
-            new(-1,-1, 0), new( 0,-1, 0), new( 1,-1, 0),
-            new(-1,-1, 1), new( 0,-1, 1), new( 1,-1, 1),
-            
-            new(-1, 1,-1), new( 0, 1,-1), new( 1, 1,-1),
-            new(-1, 1, 0), new( 0, 1, 0), new( 1, 1, 0),
-            new(-1, 1, 1), new( 0, 1, 1), new( 1, 1, 1),
-        };
-        
+    #region Query
+
         public int GetFirstOverlappingInstance(Vector3 position, float radius, Space transformSpace = Space.World)
         {
             if (_instances == null) return -1;
@@ -413,16 +382,76 @@ namespace Marinade.InstancedRendering
                 position = transform.TransformPoint(position);
             
             var hashCell = GetHashCell(position);
-            var maxDistSqr = radius * radius;
+            var radiusSqr = radius * radius;
 
-            for (int offsetIdx = 0; offsetIdx < CELL_OFFSETS.Length; offsetIdx++)
+            int result;
+            var maxCellRadius = Mathf.Max(1, Mathf.CeilToInt(radius / _currentMinScatterDistance) + 1);
+            for (int x = 0; x <= maxCellRadius; x++)
             {
-                var spatialIndex = GetSpatialIndex(hashCell + CELL_OFFSETS[offsetIdx]);
-                var ptrMax = _spatialHashTable[spatialIndex].Pointer + _spatialHashTable[spatialIndex].Count;
-                for (int instanceIdx = _spatialHashTable[spatialIndex].Pointer; instanceIdx < ptrMax; instanceIdx++)
+                var sphereRelative = x / (float)maxCellRadius;
+                var sphereSlice = Mathf.CeilToInt(Mathf.Sqrt(1F - sphereRelative * sphereRelative));
+                for (int y = 0; y <= sphereSlice; y++)
                 {
-                    if ((_instances[instanceIdx].matrix.GetPosition() - position).sqrMagnitude < maxDistSqr) return instanceIdx;
+                    for (int z = 0; z <= sphereSlice; z++)
+                    {
+                        result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, y, z), position,
+                            radiusSqr);
+                        if (result >= 0) return result;
+                        if (x != 0)
+                        {
+                            result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, y, z), position,
+                                radiusSqr);
+                            if (result >= 0) return result;
+                            if (y != 0)
+                            {
+                                result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, -y, z), position,
+                                    radiusSqr);
+                                if (result >= 0) return result;
+                                if (z != 0)
+                                {
+                                    result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, -y, -z), position,
+                                        radiusSqr);
+                                    if (result >= 0) return result;
+                                }
+                            }
+                            else if (z != 0)
+                            {
+                                result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, y, -z), position,
+                                    radiusSqr);
+                                if (result >= 0) return result;
+                            }
+                        }
+                        else if (y != 0)
+                        {
+                            result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, -y, z), position,
+                                radiusSqr);
+                            if (result >= 0) return result;
+                            if (z != 0)
+                            {
+                                result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, -y, -z), position,
+                                    radiusSqr);
+                                if (result >= 0) return result;
+                            }
+                        }
+                        else if (z != 0)
+                        {
+                            result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, y, -z), position,
+                                radiusSqr);
+                            if (result >= 0) return result;
+                        }
+                    }
                 }
+            }
+            return -1;
+        }
+
+        public int GetFirstOverlappingInstanceInCell(Vector3Int cell, Vector3 position, float radiusSqr)
+        {
+            var spatialIndex = GetSpatialIndex(cell);
+            var ptrMax = _spatialHashTable[spatialIndex].Pointer + _spatialHashTable[spatialIndex].Count;
+            for (int instanceIdx = _spatialHashTable[spatialIndex].Pointer; instanceIdx < ptrMax; instanceIdx++)
+            {
+                if ((_instances[instanceIdx].matrix.GetPosition() - position).sqrMagnitude < radiusSqr) return instanceIdx;
             }
             return -1;
         }
