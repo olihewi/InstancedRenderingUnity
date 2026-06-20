@@ -29,7 +29,7 @@ namespace Marinade.InstancedRendering.Editor
             rootElement.Add(tabView);
             
             tabView.Add(scatteringTab = new Tab("Scattering"));
-            scatteringTab.Add(radiusSlider = new Slider("Radius", 0F, 5F));
+            scatteringTab.Add(radiusSlider = new Slider("", 0F, 25F));
             radiusSlider.RegisterCallback<ChangeEvent<float>>(f =>
             {
                 if (brush == null) return;

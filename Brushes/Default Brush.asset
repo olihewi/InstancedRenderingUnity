@@ -15,7 +15,7 @@ MonoBehaviour:
   noiseFrequency: 0
   outerRadius: 1
   innerRadius: 0.8
-  scatterDistance: 0.05
+  scatterDistance: 0.5
   falloffScatteringMultiplier: 8
   noiseScatteringVariation: 0
   layerMask:
@@ -23,10 +23,11 @@ MonoBehaviour:
     m_Bits: 51
   requireSameCollider: 0
   normalLimit: -1
+  pivot: {x: 0, y: 0, z: 0}
   baseScale: {x: 1, y: 1, z: 1}
   falloffScaleMultiplier: {x: 1, y: 1, z: 1}
-  scaleRandomization: {x: 0, y: 0, z: 0}
+  scaleRandomization: {x: 2, y: 2, z: 2}
   noiseScaleVariance: {x: 0, y: 0, z: 0}
   baseRotation: {x: 0, y: 0, z: 0}
   normalAlignment: 1
-  rotationRandomization: {x: 0, y: 360, z: 0}
+  rotationRandomization: {x: 360, y: 360, z: 360}

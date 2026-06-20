@@ -8,8 +8,8 @@ namespace Marinade.InstancedRendering
     {
         // Brush
         public float noiseFrequency;
-        public float outerRadius = 1F;
-        public float innerRadius = 0.8F;
+        [Range(0.01F, 25F)] public float outerRadius = 1F;
+        [Range(0.01F, 15F)] public float innerRadius = 0.8F;
         
         // Scattering
         public float scatterDistance = 0.1F;
@@ -38,7 +38,7 @@ namespace Marinade.InstancedRendering
         public Vector3 GetInstanceScale(Vector3 position, float noise = 0F, float falloff = 1F)
         {
             var scale = baseScale;
-            var positionHash = position.GetHashCode() * 0.01F;
+            var positionHash = Mathf.Abs(position.GetHashCode() * 0.001F);
             if (!float.IsNormal(positionHash)) positionHash = 0;
             if (scaleRandomization.x != 0.0F) scale.x += positionHash % scaleRandomization.x;
             if (scaleRandomization.y != 0.0F) scale.y += positionHash % scaleRandomization.y;
