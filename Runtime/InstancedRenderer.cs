@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.IO;
+using Unity.Mathematics;
 using UnityEngine.Serialization;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -41,36 +42,28 @@ namespace Marinade.InstancedRendering
             public int Count;
         }
 
-        public const int SPATIAL_HASH_TABLE_SIZE = 1024;
         public const int INSTANCE_CELL_RATIO = 8;
 
         [SerializeField] private InstancedRendererSettings m_Settings;
-        [SerializeField, HideInInspector] private Bounds m_Bounds;
+        [SerializeField] private bool m_ModifiableInPlayMode = true;
+        [SerializeField] private bool m_CompressSerializedData = false;
+        [SerializeField] private bool m_UnloadSerializedDataOnStart = true;
         [SerializeField] private TextAsset m_SerializedData;
-        [SerializeField, HideInInspector] private int m_SerializedVersion;
-        [SerializeField] private int m_InstanceCount;
 
         private RenderParams _renderParams;
-        private List<Instance> _instances;
-        private SpatialCell[] _spatialHashTable;
-        private List<ushort> _activeHashIndices;
-        private float _spatialHashingFactor, _inverseSpatialHashingFactor;
-        private bool _dirtyThisFrame = false;
-        private ComputeBuffer _instancesBuffer;
+        private InstancingData _instanceData;
         
         private Space _currentTransformSpace;
         private LightProbeUsage _currentLightProbeUsage;
-        private float _currentMinScatterDistance;
 
-        private static readonly int _PerInstanceData = Shader.PropertyToID("_PerInstanceData");
         private static readonly int _ObjectMatrix = Shader.PropertyToID("_ObjectMatrix");
 
         public InstancedRendererSettings Settings => m_Settings;
         public InstanceScatteringBrush Brush => m_Settings.brush;
         
     #region Unity Events
-        
-        private void OnEnable()
+
+        private void Start()
         {
             _renderParams = new RenderParams(m_Settings.material)
             {
@@ -80,13 +73,10 @@ namespace Marinade.InstancedRendering
             };
             _currentTransformSpace = m_Settings.transformSpace;
             _currentLightProbeUsage = m_Settings.lightProbeUsage;
-            _currentMinScatterDistance = m_Settings.minScatterDistance;
-            OnValidate();
-            if (m_SerializedData != null)
-            {
-                using var ms = new MemoryStream(m_SerializedData.bytes);
-                LoadFromBytes(ms);
-            }
+            LoadFromSerializedData();
+        }
+        private void OnEnable()
+        {
         #if UNITY_EDITOR
             Undo.undoRedoEvent -= UndoRedoPerformed;
             Undo.undoRedoEvent += UndoRedoPerformed;
@@ -97,20 +87,25 @@ namespace Marinade.InstancedRendering
 
         private void OnDisable()
         {
-            _instancesBuffer?.Release();
-            _instancesBuffer = null;
         #if UNITY_EDITOR
             Undo.undoRedoEvent -= UndoRedoPerformed;
             UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= SceneSaving;
         #endif
         }
 
-        private void OnValidate()
+        private void OnDestroy()
         {
-            _spatialHashingFactor = 1F / (m_Settings.minScatterDistance * INSTANCE_CELL_RATIO);
-            _inverseSpatialHashingFactor = 1F / _spatialHashingFactor;
-            m_InstanceCount = _instances != null ? _instances.Count : 0;
+            if (_instanceData != null)
+            {
+                _instanceData.UnloadCPU();
+                _instanceData.UnloadGPU();
+            }
+        #if UNITY_EDITOR
+            Undo.undoRedoEvent -= UndoRedoPerformed;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= SceneSaving;
+        #endif
         }
+
     #if UNITY_EDITOR
         private void Reset()
         {
@@ -136,20 +131,23 @@ namespace Marinade.InstancedRendering
 
         private void Update()
         {
-            if (m_Settings.transformSpace != _currentTransformSpace)
+            if (_instanceData != null)
             {
-                RebuildInstanceData();
-                _currentTransformSpace = m_Settings.transformSpace;
-            }
-            if (m_Settings.lightProbeUsage != _currentLightProbeUsage)
-            {
-                _currentLightProbeUsage = m_Settings.lightProbeUsage;
-                UpdateLightProbes();
-            }
-            if (!Mathf.Approximately(m_Settings.minScatterDistance, _currentMinScatterDistance))
-            {
-                _currentMinScatterDistance = m_Settings.minScatterDistance;
-                RebuildInstanceData();
+                if (m_Settings.transformSpace != _currentTransformSpace && _instanceData.Instances.IsCreated)
+                {
+                    _currentTransformSpace = m_Settings.transformSpace;
+                }
+                /*if (m_Settings.lightProbeUsage != _currentLightProbeUsage)
+                {
+                    _currentLightProbeUsage = m_Settings.lightProbeUsage;
+                    UpdateLightProbes();
+                }*/
+                var targetSpatialHashingFactor = m_Settings.minScatterDistance;
+                if (!Mathf.Approximately(targetSpatialHashingFactor, _instanceData.SpatialHashingFactor))
+                {
+                    _instanceData.SpatialHashingFactor = targetSpatialHashingFactor;
+                    _instanceData.RebuildInstanceData();
+                }
             }
             
             Render();
@@ -157,34 +155,11 @@ namespace Marinade.InstancedRendering
 
     #endregion
 
-        private void UpdateBuffers()
-        {
-            _dirtyThisFrame = false;
-            if (_instances == null || _instances.Count == 0)
-            {
-                _instancesBuffer?.Release();
-                _instancesBuffer = null;
-                m_InstanceCount = 0;
-                return;
-            }
-            m_InstanceCount = _instances.Count;
-            if (_instancesBuffer == null || _instancesBuffer.count != _instances.Count)
-            {
-                _instancesBuffer?.Release();
-                _instancesBuffer = new ComputeBuffer(_instances.Count, sizeof(float) * 20);
-            }
-            _instancesBuffer.SetData(_instances, 0, 0, _instances.Count);
-            _renderParams.matProps.SetBuffer(_PerInstanceData, _instancesBuffer);
-        }
-        
         private void Render()
         {
-            if (_instances == null) return;
-            if (_dirtyThisFrame)
-            {
-                UpdateBuffers();
-            }
-            if (_instancesBuffer == null || m_Settings.mesh == null || m_Settings.material == null) return;
+            if (_instanceData == null || _instanceData.InstanceCount <= 0) return;
+            if (_instanceData.IsCPUDirty || _instanceData.InstancesBuffer == null) _instanceData.UploadGPU(_renderParams.matProps);
+            if (_instanceData.InstancesBuffer == null || m_Settings.mesh == null || m_Settings.material == null) return;
             _renderParams.material = m_Settings.material;
             _renderParams.layer = gameObject.layer;
             _renderParams.lightProbeUsage = m_Settings.lightProbeUsage;
@@ -194,7 +169,7 @@ namespace Marinade.InstancedRendering
             if (m_Settings.transformSpace == Space.Self) _renderParams.matProps.SetMatrix(_ObjectMatrix, transform.localToWorldMatrix);
             else _renderParams.matProps.SetMatrix(_ObjectMatrix, Matrix4x4.identity);
 
-            Graphics.RenderMeshPrimitives(_renderParams, m_Settings.mesh, 0, _instances.Count);
+            Graphics.RenderMeshPrimitives(_renderParams, m_Settings.mesh, 0, _instanceData.InstanceCount);
         }
 
     #region Modification
@@ -207,343 +182,55 @@ namespace Marinade.InstancedRendering
             else if (transformSpace == Space.Self && m_Settings.transformSpace == Space.World)
                 instance = transform.localToWorldMatrix * instance;
 
-            if (_instances == null)
-            {
-                RebuildSpatialHashTable();
-                _instances = new List<Instance>(64);
-            }
-            
-            var position = instance.GetPosition();
-            var spatialIndex = GetSpatialIndex(position);
-            if (_instances.Count == 0) m_Bounds = new Bounds(position, Vector3.zero);
-            else m_Bounds.Encapsulate(position);
-
-
-            var instanceStruct = new Instance(instance);
-            _instances.Add(instanceStruct);
-            
-            // If there are no other elements in this spatial hash, add it to the end of the instance list.
-            if (_spatialHashTable[spatialIndex].Count == 0)
-            {
-                _spatialHashTable[spatialIndex].Pointer = (ushort)(_instances.Count - 1);
-                _spatialHashTable[spatialIndex].Count = 1;
-                _activeHashIndices.Add(spatialIndex);
-                return;
-            }
-            
-            // Else move subsequent hash cells along and update their pointers
-            var activeIndex = _activeHashIndices.IndexOf(spatialIndex);
-            var swapIndex = _instances.Count - 1;
-            for (int i = _activeHashIndices.Count - 1; i > activeIndex; i--)
-            {
-                _instances[swapIndex] = _instances[swapIndex = _spatialHashTable[_activeHashIndices[i]].Pointer++];
-            }
-            _instances[swapIndex] = instanceStruct;
-            _spatialHashTable[spatialIndex].Count++;
-            _dirtyThisFrame = true;
+            _instanceData ??= new InstancingData(1F / (m_Settings.minScatterDistance * INSTANCE_CELL_RATIO));
+            _instanceData.AddInstance(instance);
         }
 
-        public void ReplaceInstance(int index, Matrix4x4 replacement)
+        public void ReplaceInstance(int index, Matrix4x4 replacement, Space transformSpace = Space.World)
         {
-            if (_instances == null || index < 0 || index >= _instances.Count) return;
-            _instances[index] = new Instance(replacement);
-            _dirtyThisFrame = true;
+            if (_instanceData == null || index < 0 || index >= _instanceData.InstanceCount) return;
+            if (transformSpace == Space.World && m_Settings.transformSpace == Space.Self)
+                replacement = transform.worldToLocalMatrix * replacement;
+            else if (transformSpace == Space.Self && m_Settings.transformSpace == Space.World)
+                replacement = transform.localToWorldMatrix * replacement;
+            _instanceData.ReplaceInstance(index, replacement);
         }
 
         public void RemoveInstance(int index)
         {
-            if (_instances == null || index < 0 || index >= _instances.Count) return;
-            var spatialIndex = GetSpatialIndex(_instances[index].matrix.GetPosition());
-            var activeIndex = _activeHashIndices.IndexOf(spatialIndex);
-            if (activeIndex < 0)
-            {
-                Debug.LogError("InstancedRenderer data is broken, cannot remove instance!");
-                return;
-            }
-
-            // Swap to back of spatial cell
-            ref var modifiedCell = ref _spatialHashTable[spatialIndex];
-            var swapIndex = modifiedCell.Pointer + modifiedCell.Count - 1;
-            _instances[index] = _instances[swapIndex];
-            
-            // Move subsequent hash cells back and update their pointers
-            for (int i = activeIndex + 1; i < _activeHashIndices.Count; i++)
-            {
-                ref var nextCell = ref _spatialHashTable[_activeHashIndices[i]];
-                var lastIndexInNextCell = --nextCell.Pointer + nextCell.Count;
-                _instances[swapIndex] = _instances[lastIndexInNextCell];
-                swapIndex = lastIndexInNextCell;
-            }
-            
-            // Remove from active hash indices if cell is empty
-            if (--modifiedCell.Count <= 0)
-            {
-                _activeHashIndices.RemoveAt(activeIndex);
-            }
-            _instances.RemoveAt(_instances.Count - 1);
-            _dirtyThisFrame = true;
+            if (_instanceData == null || index < 0 || index >= _instanceData.InstanceCount) return;
+            _instanceData.RemoveInstance(index);
         }
 
         [ContextMenu("Clear")]
         public void Clear()
         {
-            _instances = null;
-            RebuildSpatialHashTable();
-            UpdateBuffers();
+            if (_instanceData != null)
+            {
+                _instanceData.UnloadCPU();
+                _instanceData.UnloadGPU();
+            }
+            _instanceData = null;
         #if UNITY_EDITOR
             Serialize_Editor();
         #endif
-        }
-
-        public void UpdateLightProbes()
-        {
-            if (_instances == null || _instances.Count == 0) return;
-            
-            var positions = new Vector3[_instances.Count];
-            for (int i = _instances.Count - 1; i >= 0; --i)
-            {
-                positions[i] = _instances[i].matrix.GetPosition();
-            }
-            
-            var lightProbes = new SphericalHarmonicsL2[_instances.Count];
-            var occlusionProbes = new Vector4[_instances.Count];
-            LightProbes.CalculateInterpolatedLightAndOcclusionProbes(positions, lightProbes, occlusionProbes);
-            for (int i = _instances.Count - 1; i >= 0; --i)
-            {
-                var instance = _instances[i];
-                Instance.LIGHT_PROBE_SAMPLE_VECTOR[0] = instance.matrix.rotation * Vector3.up;
-                lightProbes[i].Evaluate(Instance.LIGHT_PROBE_SAMPLE_VECTOR, Instance.LIGHT_PROBE_EVALUATION_RESULT);
-                instance.probeColor = Instance.LIGHT_PROBE_EVALUATION_RESULT[0];
-                _instances[i] = instance;
-            }
-            _dirtyThisFrame = true;
-        }
-        
-        [ContextMenu("Fix Broken Data")]
-        public void RebuildInstanceData()
-        {
-            if (_instances == null) return;
-            var instances = _instances;
-            var instanceCount = instances.Count;
-            Clear();
-            _instances = new List<Instance>(instanceCount);
-            for (int i = 0; i < instanceCount; ++i)
-            {
-                AddInstance(instances[i].matrix, _currentTransformSpace);
-            }
-        #if UNITY_EDITOR
-            Serialize_Editor();
-        #endif
-        }
-
-    #endregion
-        
-    #region Spatial Hashing
-
-        public Vector3Int GetHashCell(Vector3 position)
-        {
-            return Vector3Int.FloorToInt(position * _spatialHashingFactor);
-        }
-        public ushort GetSpatialIndex(Vector3Int hashCell)
-        {
-            var hashCode = (hashCell.x * 92837111) ^ (hashCell.y * 689287499) ^ (hashCell.z * 283923481);
-            return (ushort)(Mathf.Abs(hashCode) % SPATIAL_HASH_TABLE_SIZE);
-        }
-        public ushort GetSpatialIndex(Vector3 position)
-        {
-            return GetSpatialIndex(GetHashCell(position));
-        }
-
-        private void RebuildSpatialHashTable(int activeHashIndicesCapacity = 64)
-        {
-            _spatialHashTable = new SpatialCell[SPATIAL_HASH_TABLE_SIZE];
-            _activeHashIndices = new List<ushort>(activeHashIndicesCapacity);
-            ushort prevSpatialIndex = ushort.MaxValue;
-            if (_instances == null) return;
-            for (int i = 0; i < _instances.Count; i++)
-            {
-                var spatialIndex = GetSpatialIndex(_instances[i].matrix.GetPosition());
-                if (prevSpatialIndex != spatialIndex)
-                {
-                    _spatialHashTable[spatialIndex].Pointer = (ushort)i;
-                    _activeHashIndices.Add(spatialIndex);
-                    prevSpatialIndex = spatialIndex;
-                }
-                _spatialHashTable[spatialIndex].Count++;
-            }
-        }
-
-    #endregion
-
-    #region Query
-
-        public int GetFirstOverlappingInstance(Vector3 position, float radius, Space transformSpace = Space.World)
-        {
-            if (_instances == null) return -1;
-            // Transform into this space
-            if (transformSpace == Space.World && m_Settings.transformSpace == Space.Self)
-                position = transform.InverseTransformPoint(position);
-            else if (transformSpace == Space.Self && m_Settings.transformSpace == Space.World)
-                position = transform.TransformPoint(position);
-            
-            var hashCell = GetHashCell(position);
-            var radiusSqr = radius * radius;
-
-            int result;
-            var maxCellRadius = Mathf.Max(1, Mathf.CeilToInt(radius / _currentMinScatterDistance) + 1);
-            for (int x = 0; x <= maxCellRadius; x++)
-            {
-                var sphereRelative = x / (float)maxCellRadius;
-                var sphereSlice = Mathf.CeilToInt(Mathf.Sqrt(1F - sphereRelative * sphereRelative));
-                for (int y = 0; y <= sphereSlice; y++)
-                {
-                    for (int z = 0; z <= sphereSlice; z++)
-                    {
-                        result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, y, z), position,
-                            radiusSqr);
-                        if (result >= 0) return result;
-                        if (x != 0)
-                        {
-                            result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, y, z), position,
-                                radiusSqr);
-                            if (result >= 0) return result;
-                            if (y != 0)
-                            {
-                                result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, -y, z), position,
-                                    radiusSqr);
-                                if (result >= 0) return result;
-                                if (z != 0)
-                                {
-                                    result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, -y, -z), position,
-                                        radiusSqr);
-                                    if (result >= 0) return result;
-                                }
-                            }
-                            else if (z != 0)
-                            {
-                                result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(-x, y, -z), position,
-                                    radiusSqr);
-                                if (result >= 0) return result;
-                            }
-                        }
-                        else if (y != 0)
-                        {
-                            result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, -y, z), position,
-                                radiusSqr);
-                            if (result >= 0) return result;
-                            if (z != 0)
-                            {
-                                result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, -y, -z), position,
-                                    radiusSqr);
-                                if (result >= 0) return result;
-                            }
-                        }
-                        else if (z != 0)
-                        {
-                            result = GetFirstOverlappingInstanceInCell(hashCell + new Vector3Int(x, y, -z), position,
-                                radiusSqr);
-                            if (result >= 0) return result;
-                        }
-                    }
-                }
-            }
-            return -1;
-        }
-
-        public int GetFirstOverlappingInstanceInCell(Vector3Int cell, Vector3 position, float radiusSqr)
-        {
-            var spatialIndex = GetSpatialIndex(cell);
-            var ptrMax = _spatialHashTable[spatialIndex].Pointer + _spatialHashTable[spatialIndex].Count;
-            for (int instanceIdx = _spatialHashTable[spatialIndex].Pointer; instanceIdx < ptrMax; instanceIdx++)
-            {
-                if ((_instances[instanceIdx].matrix.GetPosition() - position).sqrMagnitude < radiusSqr) return instanceIdx;
-            }
-            return -1;
         }
 
     #endregion
 
     #region Serialization
 
-        public const int CURRENT_SERIALIZED_VERSION = 1;
-        public int GetByteSize() => sizeof(int) * 3 + sizeof(float) * 6 + (_instances != null ? _instances.Count * sizeof(float) * 16 : 0);
-        public bool WriteBytes(Stream stream)
+        [ContextMenu("Load from Serialized Data")]
+        public void LoadFromSerializedData()
         {
-            try
+            if (m_SerializedData == null) return;
+            using var ms = new MemoryStream(m_SerializedData.bytes);
+            _instanceData ??= new InstancingData(1F / (m_Settings.minScatterDistance * INSTANCE_CELL_RATIO));
+            _instanceData.LoadFromBytes(ms);
+            if (m_UnloadSerializedDataOnStart && Application.isPlaying)
             {
-                using var bw = new BinaryWriter(stream);
-                bw.Write(CURRENT_SERIALIZED_VERSION);
-                bw.Write(_activeHashIndices.Count);
-                bw.Write(m_Bounds.center.x);
-                bw.Write(m_Bounds.center.y);
-                bw.Write(m_Bounds.center.z);
-                bw.Write(m_Bounds.size.x);
-                bw.Write(m_Bounds.size.y);
-                bw.Write(m_Bounds.size.z);
-                if (_instances == null)
-                {
-                    bw.Write(0);
-                    return true;
-                }
-                var instanceCount = _instances.Count;
-                bw.Write(instanceCount);
-                for (int i = 0; i < instanceCount; ++i)
-                {
-                    var m = _instances[i].matrix;
-                    bw.Write(m.m00);
-                    bw.Write(m.m10);
-                    bw.Write(m.m20);
-                    bw.Write(m.m30);
-                    bw.Write(m.m01);
-                    bw.Write(m.m11);
-                    bw.Write(m.m21);
-                    bw.Write(m.m31);
-                    bw.Write(m.m02);
-                    bw.Write(m.m12);
-                    bw.Write(m.m22);
-                    bw.Write(m.m32);
-                    bw.Write(m.m03);
-                    bw.Write(m.m13);
-                    bw.Write(m.m23);
-                    bw.Write(m.m33);
-                }
-                return true;
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e, this);
-                return false;
-            }
-        }
-
-        public bool LoadFromBytes(Stream stream)
-        {
-            try
-            {
-                using var br = new BinaryReader(stream);
-                int serializedVersion = br.ReadInt32();
-                int activeHashIndicesCount = br.ReadInt32();
-                m_Bounds = new Bounds(new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle()),
-                    new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
-                int instanceCount = br.ReadInt32();
-                _instances = new List<Instance>(instanceCount);
-                for (int i = 0; i < instanceCount; ++i)
-                {
-                    _instances.Add(new Instance{matrix = new Matrix4x4(
-                        new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()),
-                        new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()),
-                        new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()),
-                        new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()))});
-                }
-                RebuildSpatialHashTable(activeHashIndicesCount);
-                UpdateLightProbes();
-                _dirtyThisFrame = true;
-                return true;
-            }
-            catch (Exception e)
-            {
-                Debug.LogException(e, this);
-                return false;
+                Destroy(m_SerializedData);
+                m_SerializedData = null;
             }
         }
     #if UNITY_EDITOR
@@ -559,14 +246,13 @@ namespace Marinade.InstancedRendering
             {
                 Undo.DestroyObjectImmediate(m_SerializedData);
             }
-            if (_instances != null && _instances.Count > 0)
+            if (_instanceData != null && _instanceData.InstanceCount > 0)
             {
-                using var ms = new MemoryStream(GetByteSize());
-                if (!WriteBytes(ms)) return;
+                using var ms = new MemoryStream(_instanceData.GetByteSize());
+                if (!_instanceData.WriteBytes(ms, m_CompressSerializedData)) return;
                 m_SerializedData = new TextAsset(ms.ToArray()){name = fileName};
                 Undo.RegisterCreatedObjectUndo(m_SerializedData, "Modified Instances");
             }
-            m_SerializedVersion = CURRENT_SERIALIZED_VERSION;
             Undo.CollapseUndoOperations(group);
         }
         public void SceneSaving(Scene _1, string _2)
